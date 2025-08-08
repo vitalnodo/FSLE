@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>PSLE — Periodic System of Logical Elements</title>
+<style>
+  body{font-family:sans-serif;margin:0;padding:24px;background:#f8f8f8}
+  h1{margin:0 0 8px 0}
+  .section{margin-top:24px}
+  h2{margin:0 0 8px 0}
+  .grid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+  .grid-6{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+  .cell{border:1px solid #ccc;background:#fff;padding:6px}
+  .u{font-family:monospace;font-size:12px;margin-bottom:4px}
+  .badge{background:#eee;border-radius:6px;padding:2px 6px;font-size:12px;margin-left:6px}
+  .lbl{font-family:monospace;font-size:9px;fill:#000;dominant-baseline:middle;text-anchor:middle;font-weight:600;}
+  .halo{paint-order:stroke; stroke:#fff; stroke-width:3px}
+</style>
+</head>
+<body>
+<h1>PSLE — Periodic System of Logical Elements</h1>
+<div id="root"></div>
+
+<script>
+/* -------------------------------------------------------
+   Shared dotted pattern for filled regions
+   Used across all diagrams to represent "true" regions
+------------------------------------------------------- */
+function dottedDefs(extra=""){
+  return `
+<defs>
+  <pattern id="dotbg" patternUnits="userSpaceOnUse" width="6" height="6">
+    <rect x="0" y="0" width="6" height="6" fill="#f6e3b4"/>
+    <circle cx="1.2" cy="1.2" r="0.7" fill="#8a6b00"/>
+    <circle cx="4.0" cy="3.6" r="0.7" fill="#8a6b00"/>
+  </pattern>
+  ${extra}
+</defs>`;
+}
+
+/* -------------------------------------------------------
+   Helper: create an SVG text label
+   - x, y: coordinates
+   - s: string content
+   - opts: { anchor: text-anchor, cls: CSS class }
+------------------------------------------------------- */
+function text(x, y, s, opts={}) {
+  const {anchor="middle", cls="lbl"} = opts;
+  return `<text x="${x}" y="${y}" text-anchor="${anchor}" class="${cls}">${s}</text>`;
+}
+
+/* -------------------------------------------------------
+   Level 0: No circles (constants F/T)
+   mask bit: 0 = F, 1 = T
+------------------------------------------------------- */
+function svg0(mask, size=120){
+  const W=size, H=Math.floor(size*0.86);
+  const fill = (mask===1) ? "url(#dotbg)" : "white";
+  const label = mask===0 ? "F" : "T";
+  return `
+<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+${dottedDefs()}
+<rect x="0" y="0" width="${W}" height="${H}" fill="${fill}"/>
+<text x="${W/2}" y="${H/2+4}" text-anchor="middle" style="font-family:monospace;font-size:18px;fill:#000">${label}</text>
+</svg>`;
+}
+
+/* -------------------------------------------------------
+   Level 1: One circle (concepts) — x, x′
+   mask bits: bit1 = inside circle, bit0 = outside
+------------------------------------------------------- */
+function svg1(mask, size=120){
+  const W=size, H=Math.floor(size*0.86), cx=W/2, cy=H/2, r=Math.round(size*0.27);
+  const defs = dottedDefs(`
+    <mask id="outside">
+      <rect x="0" y="0" width="${W}" height="${H}" fill="white"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="black"/>
+    </mask>
+  `);
+  const parts = [
+    `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`,
+    defs
+  ];
+  if (mask & 0b10) parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#dotbg)"/>`);
+  if (mask & 0b01) parts.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="url(#dotbg)" mask="url(#outside)"/>`);
+  parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="black"/>`);
+  parts.push(text(cx, cy+4, "x"));
+  parts.push(text(18, 14, "x′", {anchor:"start"}));
+  parts.push(`</svg>`);
+  return parts.join("");
+}
+
+/* -------------------------------------------------------
+   Level 2: Two circles — Y (left), X (right)
+   Mask bits: 0bYXyx — y=inside Y, x=inside X
+------------------------------------------------------- */
+function svg2(mask, size=120){
+  const W=size, H=Math.floor(size*0.86), r=Math.round(size*0.25);
+  const cxY=Math.round(size*0.43), cyY=Math.round(H*0.56);
+  const cxX=Math.round(size*0.67), cyX=cyY;
+
+  const defs = dottedDefs(`
+    <clipPath id="Y"><circle cx="${cxY}" cy="${cyY}" r="${r}"/></clipPath>
+    <clipPath id="X"><circle cx="${cxX}" cy="${cyX}" r="${r}"/></clipPath>
+    <mask id="nY"><rect x="0" y="0" width="${W}" height="${H}" fill="white"/><circle cx="${cxY}" cy="${cyY}" r="${r}" fill="black"/></mask>
+    <mask id="nX"><rect x="0" y="0" width="${W}" height="${H}" fill="white"/><circle cx="${cxX}" cy="${cyX}" r="${r}" fill="black"/></mask>
+  `);
+  const rect = `<rect x="0" y="0" width="${W}" height="${H}" fill="url(#dotbg)"/>`;
+  const parts = [
+    `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`,
+    defs
+  ];
+  if (mask & 0b1000) parts.push(`<g clip-path="url(#Y)"><g clip-path="url(#X)">${rect}</g></g>`);
+  if (mask & 0b0100) parts.push(`<g mask="url(#nY)"><g clip-path="url(#X)">${rect}</g></g>`);
+  if (mask & 0b0010) parts.push(`<g clip-path="url(#Y)"><g mask="url(#nX)">${rect}</g></g>`);
+  if (mask & 0b0001) parts.push(`<g mask="url(#nY)"><g mask="url(#nX)">${rect}</g></g>`);
+  parts.push(`<circle cx="${cxY}" cy="${cyY}" r="${r}" fill="none" stroke="black"/>`);
+  parts.push(`<circle cx="${cxX}" cy="${cyX}" r="${r}" fill="none" stroke="black"/>`);
+  parts.push(text(18, 14, "x′y′", {anchor:"start"}));
+  parts.push(text(cxY - r/2, cyY+4, "x′y"));
+  parts.push(text(Math.round((cxY+cxX)/2), cyY+4, "xy"));
+  parts.push(text(cxX + r/2, cyX+4, "xy′"));
+  parts.push(`</svg>`);
+  return parts.join("");
+}
+
+/* -------------------------------------------------------
+   Level 3: Three circles — Y (left), X (right), Z (bottom)
+   Layout: slightly larger r and closer centers for symmetry
+   Mask bits: 8 regions = all combinations of x, y, z truth values
+------------------------------------------------------- */
+function svg3(mask, size=180){
+  const W=size, H=Math.floor(size*0.85);
+  const r   = Math.round(size*0.215);
+  const cxY = Math.round(size*0.385), cyY = Math.round(H*0.45);
+  const cxX = Math.round(size*0.615), cyX = cyY;
+  const cxZ = Math.round(size*0.500), cyZ = Math.round(H*0.71);
+
+  const defs = dottedDefs(`
+    <clipPath id="clipY"><circle cx="${cxY}" cy="${cyY}" r="${r}"/></clipPath>
+    <clipPath id="clipX"><circle cx="${cxX}" cy="${cyX}" r="${r}"/></clipPath>
+    <clipPath id="clipZ"><circle cx="${cxZ}" cy="${cyZ}" r="${r}"/></clipPath>
+    <mask id="maskNotY"><rect x="0" y="0" width="${W}" height="${H}" fill="white"/><circle cx="${cxY}" cy="${cyY}" r="${r}" fill="black"/></mask>
+    <mask id="maskNotX"><rect x="0" y="0" width="${W}" height="${H}" fill="white"/><circle cx="${cxX}" cy="${cyX}" r="${r}" fill="black"/></mask>
+    <mask id="maskNotZ"><rect x="0" y="0" width="${W}" height="${H}" fill="white"/><circle cx="${cxZ}" cy="${cyZ}" r="${r}" fill="black"/></mask>
+  `);
+  const rect = `<rect x="0" y="0" width="${W}" height="${H}" fill="url(#dotbg)"/>`;
+  const parts = [
+    `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`,
+    defs
+  ];
+
+  const opslist = [
+    ["x","y","z"], ["x","y","notz"], ["x","noty","z"], ["x","noty","notz"],
+    ["notx","y","z"], ["notx","y","notz"], ["notx","noty","z"], ["notx","noty","notz"]
+  ];
+  const openFor = (op)=>
+    op==="x"   ? `<g clip-path="url(#clipX)">` :
+    op==="y"   ? `<g clip-path="url(#clipY)">` :
+    op==="z"   ? `<g clip-path="url(#clipZ)">` :
+    op==="notx"? `<g mask="url(#maskNotX)">` :
+    op==="noty"? `<g mask="url(#maskNotY)">` :
+                 `<g mask="url(#maskNotZ)">`;
+
+  for(let i=0;i<8;i++){
+    if(!((mask>>(7-i))&1)) continue;
+    let open="", close="";
+    for(const op of opslist[i]){ open+=openFor(op); close="</g>"+close; }
+    parts.push(open+rect+close);
+  }
+
+  // Draw outlines
+  parts.push(`<circle cx="${cxY}" cy="${cyY}" r="${r}" fill="none" stroke="black"/>`);
+  parts.push(`<circle cx="${cxX}" cy="${cyX}" r="${r}" fill="none" stroke="black"/>`);
+  parts.push(`<circle cx="${cxZ}" cy="${cyZ}" r="${r}" fill="none" stroke="black"/>`);
+
+  // Text label positions
+  const centers = {
+    "xyz":      [cxZ,                     Math.round(H*0.565)],
+    "xy¬z":     [cxZ,                     Math.round(H*0.385)],
+    "x¬yz":     [Math.round(size*0.605),  Math.round(H*0.615)],
+    "x¬y¬z":    [Math.round(size*0.745),  Math.round(H*0.475)],
+    "¬xyz":     [Math.round(size*0.395),  Math.round(H*0.615)],
+    "¬xy¬z":    [Math.round(size*0.255),  Math.round(H*0.475)],
+    "¬x¬yz":    [cxZ,                     Math.round(H*0.805)],
+    "¬x¬y¬z":   [Math.round(size*0.145),  Math.round(H*0.205)]
+  };
+
+  // Region labels
+  parts.push(text(...centers["¬x¬y¬z"], "x′y′z′", {anchor:"start"}));
+  parts.push(text(...centers["xy¬z"],    "xyz′"));
+  parts.push(text(...centers["¬xy¬z"],   "x′yz′"));
+  parts.push(text(...(centers["x¬y¬з"] ?? centers["x¬y¬z"]),   "xy′z′"));
+  parts.push(text(...centers["¬x¬yz"],   "x′y′z"));
+  parts.push(text(...centers["¬xyz"],    "x′yz"));
+  parts.push(text(...centers["x¬yz"],    "xy′z"));
+  parts.push(text(...centers["xyz"],     "xyz"));
+
+  parts.push(`</svg>`);
+  return parts.join("");
+}
+
+/* -------------------------------------------------------
+   Label generator: F/T, U0..U3, U00..U15, U000..U255
+------------------------------------------------------- */
+function labelFor(level, m){
+  if(level===0) return (m===0) ? "F" : "T";
+  if(level===1) return `U${m}`;
+  if(level===2) return `U${String(m).padStart(2,"0")}`;
+  return `U${String(m).padStart(3,"0")}`;
+}
+
+/* -------------------------------------------------------
+   Render a section: title, level, count, renderer, options
+------------------------------------------------------- */
+function section(title, level, count, renderer, opts={}){
+  const { size=120, gridClass="grid" } = opts;
+  const root = document.getElementById("root");
+  const sec = document.createElement("div");
+  sec.className = "section";
+  sec.innerHTML = `<h2>${title} <span class="badge">${count}</span></h2>`;
+  const grid = document.createElement("div");
+  grid.className = gridClass;
+  for(let m=0;m<count;m++){
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.innerHTML = `<div class="u">${labelFor(level,m)}</div>${renderer(m, size)}`;
+    grid.appendChild(cell);
+  }
+  sec.appendChild(grid);
+  root.appendChild(sec);
+}
+
+/* -------------------------------------------------------
+   Render all levels
+------------------------------------------------------- */
+section("0 sets (Constants)", 0, 2,   svg0, { size:120, gridClass:"grid" });
+section("1 set (Concepts)",  1, 4,   svg1, { size:120, gridClass:"grid" });
+section("2 sets (Judgements)", 2, 16,  svg2, { size:120, gridClass:"grid" });
+section("3 sets (Syllogisms)", 3, 256, svg3, { size:200, gridClass:"grid-6" });
+
+</script>
+
+<!-- -----------------------------------------------------
+     References
+------------------------------------------------------ -->
+<section class="section">
+<h2>Links</h2>
+<ul>
+  <li><a href="https://www.youtube.com/watch?v=S1YHvYEleto">https://www.youtube.com/watch?v=S1YHvYEleto</a></li>
+  <li><a href="https://github.com/vitalnodo/FSLE">https://github.com/vitalnodo/FSLE</a></li>
+</ul>
+</section>
+
+</body>
+</html>
